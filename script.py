@@ -8,15 +8,18 @@ import socket
 import socks
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# تعداد کلیدهای خصوصی که قصد تولید داریم
 num_keys = 1000000
-num_workers = 10  
+num_workers = 10  # تعداد کارگران (تعداد thread ها)
 
 def load_proxies(file_path):
+    """بارگذاری پراکسی‌ها از فایل"""
     with open(file_path, 'r') as f:
         proxies = f.read().splitlines()
     return cycle(proxies)
 
 def set_proxy(proxy):
+    """تنظیم پراکسی برای درخواست‌ها"""
     proxy = proxy.strip()
     if '@' in proxy:
         user_pass, ip_port = proxy.split('@')
@@ -30,6 +33,7 @@ def set_proxy(proxy):
     socket.socket = socks.socksocket
 
 def check_proxy(proxy):
+    """بررسی فعال بودن پراکسی"""
     try:
         set_proxy(proxy)
         response = requests.get('http://www.google.com', timeout=5)
@@ -38,9 +42,11 @@ def check_proxy(proxy):
         return False
 
 def generate_private_key():
+    """تولید یک کلید خصوصی تصادفی"""
     return os.urandom(32)
 
 def private_key_to_wif(private_key):
+    """تبدیل کلید خصوصی به فرمت WIF"""
     extended_key = b'\x80' + private_key
     sha256_1 = hashlib.sha256(extended_key).digest()
     sha256_2 = hashlib.sha256(sha256_1).digest()
@@ -49,10 +55,12 @@ def private_key_to_wif(private_key):
     return wif
 
 def private_key_to_address(private_key):
+    """تبدیل کلید خصوصی به آدرس عمومی بیت‌کوین"""
     priv = PrivateKey(wif=private_key_to_wif(private_key))
     return priv.address()
 
 def check_balance(address):
+    """بررسی موجودی آدرس بیت‌کوین"""
     url = f"https://blockchain.info/rawaddr/{address}"
     response = requests.get(url)
     if response.status_code == 200:
@@ -62,6 +70,7 @@ def check_balance(address):
         return 0
 
 def save_key_info(index, private_key, address, balance):
+    """ذخیره کلید خصوصی و آدرس عمومی در فایل"""
     with open("keys_with_balance.txt", "a") as f:
         f.write(f"{index}: Private Key: {private_key.hex()}, Address: {address}, Balance: {balance}\n")
 
@@ -85,7 +94,7 @@ def main():
     proxy_cycle = load_proxies("proxy.txt")
     current_proxy = next(proxy_cycle)
 
-   
+    # بررسی و تنظیم پراکسی
     while not check_proxy(current_proxy):
         current_proxy = next(proxy_cycle)
     
@@ -101,7 +110,7 @@ def main():
             except Exception as exc:
                 print(f"Key {index} generated an exception: {exc}")
 
-            
+            # تغییر پراکسی هر ۲ دقیقه
             if time.time() - start_time > 120:
                 current_proxy = next(proxy_cycle)
                 while not check_proxy(current_proxy):
